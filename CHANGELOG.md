@@ -18,6 +18,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   is full is dropped.
 - `DanmakuStyle.overflowPolicy` chooses between overlapping on the lane that clears first and dropping, for an
   entry that arrives while every lane is busy.
+- `DanmakuItem.scale` sets a per-entry font size, and `DanmakuItem.width` reserves horizontal space for content
+  that is not text.
+- `DanmakuStyle.textOutline` strokes an outline behind the text.
+- `DanmakuBubble` draws a default plate under the selected entry with an arrow aimed at it, and
+  `DanmakuBubbleItem` is a plain item that matches the plate.
 
 ### Changed
 
