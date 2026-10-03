@@ -26,6 +26,8 @@ Dependencies resolve from Google and Maven Central.
 
 ## Code style
 
+- The build runs in Kotlin explicit API mode, so a public declaration needs an explicit visibility modifier
+  and an explicit return type. The compiler enforces this, not review.
 - Public API is documented with English KDoc, including `@param` and `@property` for everything that is
   not obvious.
 - Inline comments explain why something is done, not what the code already says.
