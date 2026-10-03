@@ -7,6 +7,29 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-03
+
+### Added
+
+- Measured layouts are kept across placement passes, so an entry list that grew by one entry costs one
+  measurement rather than one per entry. A layer of 8,000 entries re-places in 30 ms, where re-measuring the
+  whole list took 1,270 ms.
+- A measured cost report for a placement pass, with charts and reproduction commands, in `PERFORMANCE.md`
+  and `PERFORMANCE.zh-CN.md`.
+
+### Changed
+
+- `DanmakuDrawContext.textLayout` carries the colour of `DanmakuStyle.textStyle` rather than
+  `DanmakuItem.color`. One layout is shared by every entry of the same text and size, and a layout holds only
+  one colour. A custom `DanmakuItemRenderer` that hands it to `drawText` without a colour has to pass
+  `context.item.color`, which `drawDefaultDanmaku` does.
+
+### Fixed
+
+- An entry no longer takes the colour of another entry sharing its text and size. Compose caches layouts under
+  layout-affecting attributes only, so a colour difference between two such entries was not part of the cache
+  key and could be dropped.
+
 ## [0.2.0] - 2026-10-03
 
 ### Added
