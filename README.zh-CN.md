@@ -158,7 +158,7 @@ DanmakuOverlay(
 
 播放进度写入一个仅由绘制阶段读取的状态，因此帧循环只触发重绘，不触发重组与重新布局。
 
-文本在条目列表、图层宽度或 `DanmakuStyle` 变化时测量一次。`style` 因此是测量缓存的键之一；`opacity` 只作用于绘制阶段，故为独立参数。
+文本按条测量一次，而非每个 pass 测量一次：测量结果跨 pass 保留，因此列表新增一条只产生一次测量的开销，而非全部重测。`style` 是该缓存的键；`opacity` 只作用于绘制阶段，故为独立参数。单个 pass 的实测开销见 [PERFORMANCE.zh-CN.md](PERFORMANCE.zh-CN.md)。
 
 ## 注意事项
 

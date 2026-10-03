@@ -167,7 +167,7 @@ Lanes are assigned greedily in time order: each entry takes the earliest lane th
 
 The playback position is written into state that only the draw phase reads, so the frame loop causes redraws and never recomposition or layout.
 
-Text is measured once, whenever the entry list, the layer width or `DanmakuStyle` changes. That is why `style` is one of the measurement cache keys, and why `opacity`, which only affects drawing, is a parameter of its own.
+Text is measured once per entry rather than once per pass: measured layouts are carried across passes, so a list that grew by one entry costs one measurement instead of one per entry. `style` is a key of that cache, and `opacity`, affecting only drawing, is a parameter of its own. The measured cost of a pass is in [PERFORMANCE.md](PERFORMANCE.md).
 
 ## Notes
 
