@@ -8,9 +8,12 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -21,12 +24,19 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameMillis
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import kotlin.math.roundToInt
 import xyz.larkzhh.danmaku.DanmakuClock
 import xyz.larkzhh.danmaku.DanmakuItem
 import xyz.larkzhh.danmaku.DanmakuOverlay
+import xyz.larkzhh.danmaku.DanmakuSelection
 
 /**
  * Sample screen: a fake video surface with a danmaku layer on top.
@@ -38,7 +48,8 @@ import xyz.larkzhh.danmaku.DanmakuOverlay
 fun DanmakuDemo() {
     var playing by remember { mutableStateOf(true) }
     var danmakuEnabled by remember { mutableStateOf(true) }
-    var lastTapped by remember { mutableStateOf<String?>(null) }
+    var selection by remember { mutableStateOf<DanmakuSelection?>(null) }
+    var lastAction by remember { mutableStateOf<String?>(null) }
     var positionMs by remember { mutableLongStateOf(0L) }
 
     LaunchedEffect(playing) {
@@ -69,12 +80,21 @@ fun DanmakuDemo() {
             items = items,
             clock = clock,
             enabled = danmakuEnabled,
+            selection = selection,
+            onSelectionChange = { selection = it },
             modifier = Modifier
                 .fillMaxWidth()
                 .align(Alignment.TopCenter)
                 .padding(top = 96.dp),
-            onItemClick = { lastTapped = it.text },
-        )
+        ) { selected ->
+            SelectionBubble(
+                selection = selected,
+                onAction = { label ->
+                    lastAction = "$label: ${selected.item.text}"
+                    selection = null
+                },
+            )
+        }
 
         Column(
             modifier = Modifier
@@ -84,7 +104,7 @@ fun DanmakuDemo() {
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Text(
-                text = lastTapped?.let { "tapped: $it" } ?: "tap any danmaku",
+                text = lastAction ?: "tap any danmaku",
                 color = Color(0xFF9E9EAA),
             )
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -96,6 +116,49 @@ fun DanmakuDemo() {
                 }
             }
         }
+    }
+}
+
+/**
+ * A menu owned by the sample rather than by the library.
+ *
+ * The library only reports where the selected entry is, so the buttons and the rule that only your own
+ * entries can be deleted stay here.
+ */
+@Composable
+private fun SelectionBubble(
+    selection: DanmakuSelection,
+    onAction: (String) -> Unit,
+) {
+    var size by remember(selection.item.id) { mutableStateOf(IntSize.Zero) }
+    Row(
+        modifier = Modifier
+            .offset {
+                val centered = selection.topLeft.x + selection.size.width / 2f - size.width / 2f
+                val limit = (selection.layerSize.width - size.width).coerceAtLeast(0).toFloat()
+                IntOffset(
+                    x = centered.coerceIn(0f, limit).roundToInt(),
+                    y = (selection.topLeft.y + selection.size.height).roundToInt(),
+                )
+            }
+            .onSizeChanged { size = it }
+            .clip(RoundedCornerShape(8.dp))
+            .background(Color(0xFF2C2C2E))
+            .padding(horizontal = 4.dp, vertical = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        BubbleAction("Copy") { onAction("copy") }
+        BubbleAction("Report") { onAction("report") }
+        if (selection.item.isSelf) {
+            BubbleAction("Delete") { onAction("delete") }
+        }
+    }
+}
+
+@Composable
+private fun BubbleAction(label: String, onClick: () -> Unit) {
+    TextButton(onClick = onClick) {
+        Text(text = label, color = Color.White, fontSize = 12.sp)
     }
 }
 
