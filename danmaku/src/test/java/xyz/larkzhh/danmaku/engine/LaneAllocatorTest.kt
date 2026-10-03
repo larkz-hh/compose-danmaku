@@ -5,12 +5,14 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import xyz.larkzhh.danmaku.DanmakuOverflowPolicy
 
 /**
  * Tests for [LaneAllocator].
  *
  * The allocator is pure maths, so everything here runs on the JVM without a device. The numbers are
- * chosen so each case isolates one rule: reuse, width, gap and the saturated fallback.
+ * chosen so each case isolates one rule: reuse, width, gap, the saturated fallback, the on-screen bound and
+ * the overflow policy.
  */
 class LaneAllocatorTest {
 
@@ -27,6 +29,8 @@ class LaneAllocatorTest {
         containerWidthPx: Float = CONTAINER_WIDTH_PX,
         durationMillis: Long = DURATION_MS,
         gapPx: Float = 0f,
+        maxVisible: Int = Int.MAX_VALUE,
+        overflowPolicy: DanmakuOverflowPolicy = DanmakuOverflowPolicy.Overlap,
     ): IntArray = LaneAllocator.allocate(
         timesMs = timesMs,
         widthsPx = widthsPx,
@@ -34,6 +38,8 @@ class LaneAllocatorTest {
         containerWidthPx = containerWidthPx,
         durationMillis = durationMillis,
         gapPx = gapPx,
+        maxVisible = maxVisible,
+        overflowPolicy = overflowPolicy,
     )
 
     @Test
@@ -148,6 +154,75 @@ class LaneAllocatorTest {
     fun `a non positive duration is rejected`() {
         assertThrows(IllegalArgumentException::class.java) {
             allocate(timesMs = longArrayOf(0L), widthsPx = floatArrayOf(10f), durationMillis = 0L)
+        }
+    }
+
+    @Test
+    fun `maxVisible bounds how many entries are on screen at once`() {
+        // The first two stay on screen for a full 8000 ms, so everything arriving in between is dropped.
+        val lanes = allocate(
+            timesMs = longArrayOf(0L, 100L, 200L, 300L, 400L),
+            widthsPx = floatArrayOf(100f, 100f, 100f, 100f, 100f),
+            maxVisible = 2,
+        )
+
+        assertArrayEquals(
+            intArrayOf(0, 1, LaneAllocator.DROPPED, LaneAllocator.DROPPED, LaneAllocator.DROPPED),
+            lanes,
+        )
+    }
+
+    @Test
+    fun `entries that have left the screen make room again`() {
+        // The first two come in at 0 ms and 100 ms and leave at 8000 ms and 8100 ms, so the third at 9000 ms fits.
+        val lanes = allocate(
+            timesMs = longArrayOf(0L, 100L, 9_000L),
+            widthsPx = floatArrayOf(100f, 100f, 100f),
+            maxVisible = 2,
+        )
+
+        assertArrayEquals(intArrayOf(0, 1, 0), lanes)
+    }
+
+    @Test
+    fun `dropping on overflow is opt in`() {
+        val times = longArrayOf(0L, 0L, 0L, 10L)
+        val widths = floatArrayOf(1_000f, 500f, 200f, 100f)
+
+        val overlap = allocate(timesMs = times, widthsPx = widths)
+        val drop = allocate(
+            timesMs = times,
+            widthsPx = widths,
+            overflowPolicy = DanmakuOverflowPolicy.Drop,
+        )
+
+        // Overlap is the default and keeps the fourth entry on the lane that clears first.
+        assertArrayEquals(intArrayOf(0, 1, 2, 2), overlap)
+        assertArrayEquals(intArrayOf(0, 1, 2, LaneAllocator.DROPPED), drop)
+    }
+
+    @Test
+    fun `dropped entries do not count towards maxVisible`() {
+        // Two lanes only, and the cap sits above the lane count, so the pair arriving after the layer is full
+        // is dropped by the overflow policy while still leaving the window empty.
+        val lanes = allocate(
+            timesMs = longArrayOf(0L, 0L, 10L, 20L, 9_000L),
+            widthsPx = floatArrayOf(1_000f, 500f, 100f, 100f, 100f),
+            laneCount = 2,
+            maxVisible = 4,
+            overflowPolicy = DanmakuOverflowPolicy.Drop,
+        )
+
+        assertArrayEquals(
+            intArrayOf(0, 1, LaneAllocator.DROPPED, LaneAllocator.DROPPED, 0),
+            lanes,
+        )
+    }
+
+    @Test
+    fun `a non positive maxVisible is rejected`() {
+        assertThrows(IllegalArgumentException::class.java) {
+            allocate(timesMs = longArrayOf(0L), widthsPx = floatArrayOf(10f), maxVisible = 0)
         }
     }
 }
