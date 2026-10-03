@@ -59,7 +59,7 @@ afterEvaluate {
 
                 groupId = "com.github.larkz-hh"
                 artifactId = "compose-danmaku"
-                version = "0.1.0"
+                version = "0.2.0"
 
                 pom {
                     name.set("compose-danmaku")
