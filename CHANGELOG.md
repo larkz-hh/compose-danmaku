@@ -14,6 +14,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - `DanmakuOverlay` takes `selection` and pins that entry in place while the rest keeps scrolling.
 - `DanmakuOverlay` takes a `selectionContent` slot, composed inside the layer so the reported position can be
   used as an offset directly.
+- `DanmakuStyle.maxVisible` bounds how many entries may be on screen at once; an entry arriving while the layer
+  is full is dropped.
+- `DanmakuStyle.overflowPolicy` chooses between overlapping on the lane that clears first and dropping, for an
+  entry that arrives while every lane is busy.
 
 ### Changed
 

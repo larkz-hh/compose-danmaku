@@ -23,6 +23,8 @@ to the caller. It depends on no player, reading the timeline through a single-me
 - `DanmakuItemRenderer` replaces the default look, and `drawDefaultDanmaku` extends it.
 - Taps are resolved against the current position of every entry.
 - Selecting an entry pins it in place and reports where it is, so a host can anchor its own menu to it.
+- An optional cap on how many entries may be on screen at once, and a choice between overlapping and dropping
+  when every lane is busy.
 
 ## Download
 
@@ -132,6 +134,8 @@ Properties of `DanmakuStyle`:
 | `textStyle` | `DefaultDanmakuTextStyle` | Style used for measuring and drawing |
 | `touchPadding` | `8.dp` | How far the tap target extends past the text |
 | `selfHighlight` | `DanmakuSelfHighlight.Default` | Plate behind own entries, `null` disables it |
+| `maxVisible` | `Int.MAX_VALUE` | Upper bound on how many entries may be on screen at once; the rest are dropped |
+| `overflowPolicy` | `DanmakuOverflowPolicy.Overlap` | What to do with an entry that arrives while every lane is busy |
 
 `DanmakuSelection`, reported by `onSelectionChange`:
 
@@ -143,13 +147,23 @@ Properties of `DanmakuStyle`:
 | `layerSize` | Size of the layer, for keeping a menu inside it |
 | `frozenAtMs` | The clock value the entry is pinned at |
 
+`DanmakuOverflowPolicy` is either `Overlap`, which draws the entry on the lane that clears first even though it
+overlaps one already there, or `Drop`, which leaves it out.
+
 The drawing side also includes `DanmakuItemRenderer` and `DanmakuDrawContext`; `DanmakuSelfHighlight` carries
 the plate colours and padding, and `DefaultDanmakuTextStyle` is the text style used when none is passed.
 
 ## Notes
 
-- When every lane is occupied, an entry takes the lane that clears first and may overlap an earlier entry. No
-  entry is dropped.
+- When every lane is occupied, an entry takes the lane that clears first and may overlap an earlier entry. With
+  `DanmakuOverflowPolicy.Drop` it is not drawn at all.
+- `maxVisible` counts only the entries actually on screen, so an entry dropped by the overflow policy never uses
+  up room another entry could have taken.
+- `overflowPolicy` is only reached while `maxVisible` still has room. A lane counts as busy until the tail of
+  its last entry has cleared the right edge, well before that entry leaves the screen, so with
+  `maxVisible <= laneCount` the cap always fires first.
+- `maxVisible` and `overflowPolicy` change the layout, so they live in `DanmakuStyle` and changing them
+  re-measures the entries. `opacity` changes no layout and stays a parameter of `DanmakuOverlay`.
 - `timeMs` has to share the origin and the unit of the clock. A different unit, or a different starting point
   than the data was recorded against, shifts every entry.
 - With `onSelectionChange` left at `null` the layer consumes no touches, which suits a layer over a surface

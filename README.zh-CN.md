@@ -20,6 +20,7 @@ compose-danmaku 是一个将弹幕投放到视频画面之上滚动的 Compose �
 - `DanmakuItemRenderer` 可整体替换默认样式，`drawDefaultDanmaku` 可在默认样式上追加。
 - 点击命中按弹幕的当前位置判定。
 - 选中一条弹幕会把它钉在原地并给出它当前的位置，供调用方锚定自己的菜单。
+- 可限制同屏弹幕数量，并可选择轨道占满时是重叠还是丢弃。
 
 ## 引入
 
@@ -125,6 +126,8 @@ DanmakuOverlay(
 | `textStyle` | `DefaultDanmakuTextStyle` | 测量与绘制使用的文字样式 |
 | `touchPadding` | `8.dp` | 点击判定相对文字的外扩量 |
 | `selfHighlight` | `DanmakuSelfHighlight.Default` | 本人弹幕底板，`null` 表示关闭 |
+| `maxVisible` | `Int.MAX_VALUE` | 同屏弹幕数量上限，超出的丢弃 |
+| `overflowPolicy` | `DanmakuOverflowPolicy.Overlap` | 轨道占满时到达的弹幕如何处理 |
 
 `DanmakuSelection`，由 `onSelectionChange` 上报：
 
@@ -136,11 +139,16 @@ DanmakuOverlay(
 | `layerSize` | 图层尺寸，用于把菜单收在图层范围内 |
 | `frozenAtMs` | 该弹幕被钉住时所处的播放进度 |
 
+`DanmakuOverflowPolicy` 有两个取值：`Overlap` 占用最早空出的轨道绘制，即使与已有弹幕重叠；`Drop` 则不绘制该条。
+
 绘制侧还包含 `DanmakuItemRenderer` 与 `DanmakuDrawContext`，`DanmakuSelfHighlight` 定义底板配色与内边距，`DefaultDanmakuTextStyle` 为未传入样式时使用的文字样式。
 
 ## 注意事项
 
-- 所有轨道均被占用时，弹幕占用最早空出的轨道，可能与更早的弹幕重叠，但不会被丢弃。
+- 所有轨道均被占用时，弹幕占用最早空出的轨道，可能与更早的弹幕重叠；`DanmakuOverflowPolicy.Drop` 则不绘制该条。
+- `maxVisible` 只统计真正在屏上的弹幕，被占满策略丢弃的弹幕不会占用其它弹幕的名额。
+- `overflowPolicy` 只在 `maxVisible` 还有余量时才会生效。轨道的占用持续到其上一条弹幕的尾部越过右边界为止，这远早于该弹幕离屏；因此 `maxVisible <= laneCount` 时上限总是先触发。
+- `maxVisible` 与 `overflowPolicy` 影响布局，因此放在 `DanmakuStyle` 中，修改它们会重新测量弹幕；`opacity` 不影响布局，仍作为 `DanmakuOverlay` 的参数。
 - `timeMs` 必须与时钟的原点及单位一致。单位或起点与弹幕数据不同会导致全部弹幕错位。
 - `onSelectionChange` 为 `null` 时图层不消费触摸事件，适用于覆盖在点击即暂停的表面上。
 - `selectionContent` 在图层内部组合，因此 `DanmakuSelection.topLeft` 可直接当作偏移量。放在图层外部的
