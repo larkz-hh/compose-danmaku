@@ -22,11 +22,12 @@ to the caller. It depends on no player, reading the timeline through a single-me
 - Per-entry colour, plus a highlight plate for the current user's own entries.
 - `DanmakuItemRenderer` replaces the default look, and `drawDefaultDanmaku` extends it.
 - Taps are resolved against the current position of every entry.
+- Selecting an entry pins it in place and reports where it is, so a host can anchor its own menu to it.
 
 ## Download
 
 ```kotlin
-implementation("com.github.larkz-hh:compose-danmaku:0.1.0")
+implementation("com.github.larkz-hh:compose-danmaku:0.2.0")
 ```
 
 Requires minSdk 23 and Compose BOM 2026.02.01. The library depends on `compose-ui`, `compose-foundation` and
@@ -48,7 +49,6 @@ fun VideoScreen(player: ExoPlayer, entries: List<DanmakuItem>) {
             modifier = Modifier
                 .fillMaxWidth()
                 .align(Alignment.TopCenter),
-            onItemClick = { entry -> showActions(entry) },
         )
     }
 }
@@ -75,6 +75,25 @@ val outlined = DanmakuItemRenderer { context ->
 DanmakuOverlay(items = entries, clock = clock, itemRenderer = outlined)
 ```
 
+To pin a tapped entry and anchor your own menu to it, hold the selection the layer reports and feed it back:
+
+```kotlin
+var selection by remember { mutableStateOf<DanmakuSelection?>(null) }
+
+DanmakuOverlay(
+    items = entries,
+    clock = clock,
+    selection = selection,
+    onSelectionChange = { selection = it },
+) { selected ->
+    // Composed inside the layer, so the reported position is an offset already.
+    MyMenu(anchor = selected.topLeft, onDismiss = { selection = null })
+}
+```
+
+Leaving `selection` at `null` keeps every entry moving; the layer only pins the entry that selection names.
+What the menu contains, and whether a given entry may be deleted, stays with you.
+
 ## API reference
 
 Parameters of `DanmakuOverlay`:
@@ -88,7 +107,9 @@ Parameters of `DanmakuOverlay`:
 | `enabled` | `true` | Whether entries are drawn; the layer keeps its placeholder height either way |
 | `opacity` | `1f` | Opacity of everything the layer draws |
 | `itemRenderer` | `DefaultDanmakuItemRenderer` | How a single entry is drawn |
-| `onItemClick` | `null` | Called with the tapped entry; `null` consumes no touches |
+| `selection` | `null` | Entry to pin in place, normally the value last reported by `onSelectionChange` |
+| `onSelectionChange` | `null` | Called with the tapped entry, and with `null` on a tap on empty space while something is selected; `null` consumes no touches |
+| `selectionContent` | `{}` | Content composed inside the layer's coordinate space while `selection` resolves to an entry |
 
 Properties of `DanmakuItem`:
 
@@ -112,6 +133,16 @@ Properties of `DanmakuStyle`:
 | `touchPadding` | `8.dp` | How far the tap target extends past the text |
 | `selfHighlight` | `DanmakuSelfHighlight.Default` | Plate behind own entries, `null` disables it |
 
+`DanmakuSelection`, reported by `onSelectionChange`:
+
+| Property | Description |
+| --- | --- |
+| `item` | The selected entry |
+| `topLeft` | Where the entry sits in pixels, relative to the layer's top left corner |
+| `size` | Measured size of the entry in pixels |
+| `layerSize` | Size of the layer, for keeping a menu inside it |
+| `frozenAtMs` | The clock value the entry is pinned at |
+
 The drawing side also includes `DanmakuItemRenderer` and `DanmakuDrawContext`; `DanmakuSelfHighlight` carries
 the plate colours and padding, and `DefaultDanmakuTextStyle` is the text style used when none is passed.
 
@@ -121,8 +152,11 @@ the plate colours and padding, and `DefaultDanmakuTextStyle` is the text style u
   entry is dropped.
 - `timeMs` has to share the origin and the unit of the clock. A different unit, or a different starting point
   than the data was recorded against, shifts every entry.
-- With `onItemClick` left at `null` the layer consumes no touches, which suits a layer over a surface that
-  toggles playback on tap.
+- With `onSelectionChange` left at `null` the layer consumes no touches, which suits a layer over a surface
+  that toggles playback on tap.
+- `selectionContent` is composed inside the layer, so `DanmakuSelection.topLeft` is an offset already.
+  Content placed outside the layer would need the layer's own position added to it.
+- Re-tapping the pinned entry keeps it where it is instead of pinning it again at the current moment.
 - Entries wider than the layer are not wrapped and scroll through whole, which keeps lane allocation
   predictable.
 - The clock is called once per frame, so it must be lightweight and must not block.
@@ -139,8 +173,8 @@ dependency:
 ./gradlew :app:installDebug
 ```
 
-Tapping an entry echoes its text below the layer, pausing freezes the clock, and hiding the layer leaves the
-layout unchanged.
+Tapping an entry pins it and opens the sample's own menu, anchored with the position the layer reports.
+Pausing freezes the clock, and hiding the layer leaves the layout unchanged.
 
 ## Used by
 

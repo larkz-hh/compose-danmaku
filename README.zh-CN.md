@@ -19,11 +19,12 @@ compose-danmaku 是一个将弹幕投放到视频画面之上滚动的 Compose �
 - 支持逐条颜色，以及本人弹幕的高亮底板。
 - `DanmakuItemRenderer` 可整体替换默认样式，`drawDefaultDanmaku` 可在默认样式上追加。
 - 点击命中按弹幕的当前位置判定。
+- 选中一条弹幕会把它钉在原地并给出它当前的位置，供调用方锚定自己的菜单。
 
 ## 引入
 
 ```kotlin
-implementation("com.github.larkz-hh:compose-danmaku:0.1.0")
+implementation("com.github.larkz-hh:compose-danmaku:0.2.0")
 ```
 
 要求 minSdk 23、Compose BOM 2026.02.01。库仅依赖 `compose-ui`、`compose-foundation` 与 `compose-runtime`，不含 Material，也不含播放器。
@@ -44,7 +45,6 @@ fun VideoScreen(player: ExoPlayer, entries: List<DanmakuItem>) {
             modifier = Modifier
                 .fillMaxWidth()
                 .align(Alignment.TopCenter),
-            onItemClick = { entry -> showActions(entry) },
         )
     }
 }
@@ -69,6 +69,24 @@ val outlined = DanmakuItemRenderer { context ->
 DanmakuOverlay(items = entries, clock = clock, itemRenderer = outlined)
 ```
 
+若要把点击的弹幕钉住、并把自定义菜单锚定到它上面，持有图层上报的选中状态并回传即可：
+
+```kotlin
+var selection by remember { mutableStateOf<DanmakuSelection?>(null) }
+
+DanmakuOverlay(
+    items = entries,
+    clock = clock,
+    selection = selection,
+    onSelectionChange = { selection = it },
+) { selected ->
+    // 该插槽在图层内部组合，上报的坐标可直接当作偏移量使用。
+    MyMenu(anchor = selected.topLeft, onDismiss = { selection = null })
+}
+```
+
+`selection` 保持为 `null` 时所有弹幕照常滚动；图层只会钉住该状态指向的那一条。菜单里放什么、某条弹幕能否被删除，仍由调用方决定。
+
 ## API 参考
 
 `DanmakuOverlay` 的参数：
@@ -82,7 +100,9 @@ DanmakuOverlay(items = entries, clock = clock, itemRenderer = outlined)
 | `enabled` | `true` | 是否绘制；关闭后图层仍保留占位高度 |
 | `opacity` | `1f` | 图层全部内容的透明度 |
 | `itemRenderer` | `DefaultDanmakuItemRenderer` | 单条弹幕的绘制方式 |
-| `onItemClick` | `null` | 点中弹幕时的回调；为 `null` 时不消费触摸 |
+| `selection` | `null` | 要钉住的弹幕，通常回传 `onSelectionChange` 最近上报的值 |
+| `onSelectionChange` | `null` | 点中弹幕时上报该弹幕；已选中时点空白处上报 `null`；为 `null` 时不消费触摸 |
+| `selectionContent` | `{}` | 当 `selection` 能对应到弹幕时，在图层坐标系内组合的内容 |
 
 `DanmakuItem` 的属性：
 
@@ -106,13 +126,26 @@ DanmakuOverlay(items = entries, clock = clock, itemRenderer = outlined)
 | `touchPadding` | `8.dp` | 点击判定相对文字的外扩量 |
 | `selfHighlight` | `DanmakuSelfHighlight.Default` | 本人弹幕底板，`null` 表示关闭 |
 
+`DanmakuSelection`，由 `onSelectionChange` 上报：
+
+| 属性 | 说明 |
+| --- | --- |
+| `item` | 被选中的弹幕 |
+| `topLeft` | 该弹幕的位置（像素），相对图层左上角 |
+| `size` | 该弹幕的测量尺寸（像素） |
+| `layerSize` | 图层尺寸，用于把菜单收在图层范围内 |
+| `frozenAtMs` | 该弹幕被钉住时所处的播放进度 |
+
 绘制侧还包含 `DanmakuItemRenderer` 与 `DanmakuDrawContext`，`DanmakuSelfHighlight` 定义底板配色与内边距，`DefaultDanmakuTextStyle` 为未传入样式时使用的文字样式。
 
 ## 注意事项
 
 - 所有轨道均被占用时，弹幕占用最早空出的轨道，可能与更早的弹幕重叠，但不会被丢弃。
 - `timeMs` 必须与时钟的原点及单位一致。单位或起点与弹幕数据不同会导致全部弹幕错位。
-- `onItemClick` 为 `null` 时图层不消费触摸事件，适用于覆盖在点击即暂停的表面上。
+- `onSelectionChange` 为 `null` 时图层不消费触摸事件，适用于覆盖在点击即暂停的表面上。
+- `selectionContent` 在图层内部组合，因此 `DanmakuSelection.topLeft` 可直接当作偏移量。放在图层外部的
+  内容需要自行叠加图层自身的位置。
+- 再次点击已被钉住的弹幕，它会留在原处，而不是按当前时刻重新钉一次。
 - 宽于图层的弹幕不换行，整条滚动通过，以保证轨道分配的可预测性。
 - 时钟每帧调用一次，实现需保持轻量且不得阻塞。
 - 内联构造 `DanmakuClock { ... }` 是安全的：帧循环始终读取最新的时钟且不会重启。
@@ -126,7 +159,7 @@ DanmakuOverlay(items = entries, clock = clock, itemRenderer = outlined)
 ./gradlew :app:installDebug
 ```
 
-点击弹幕会在图层下方显示其文本，暂停会冻结时钟，关闭图层后布局保持不变。
+点击弹幕会把它钉住并弹出示例自己的菜单，位置取自图层上报的坐标。暂停会冻结时钟，关闭图层后布局保持不变。
 
 ## 使用方
 
