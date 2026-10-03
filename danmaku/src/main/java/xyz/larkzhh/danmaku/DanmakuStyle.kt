@@ -43,6 +43,13 @@ public val DefaultDanmakuTextStyle: TextStyle = TextStyle(
  *   a bare glyph is an unreasonably small target.
  * @property selfHighlight Plate drawn behind entries flagged as [DanmakuItem.isSelf], or `null` to draw
  *   them exactly like every other entry.
+ * @property maxVisible Upper bound on how many entries may be on screen at the same moment. Entries that
+ *   arrive while the layer already holds this many are dropped. The default places no cap; lower it to keep
+ *   a busy layer readable, which is cheaper than shrinking the text.
+ * @property overflowPolicy What happens to an entry that arrives while every lane is still busy. Defaults to
+ *   [DanmakuOverflowPolicy.Overlap]. Only reached while [maxVisible] still has room: a lane counts as busy
+ *   until the tail of its last entry has cleared the right edge, which happens well before that entry leaves
+ *   the screen, so with `maxVisible <= laneCount` the cap always fires first.
  */
 @Immutable
 public data class DanmakuStyle(
@@ -53,11 +60,14 @@ public data class DanmakuStyle(
     public val textStyle: TextStyle = DefaultDanmakuTextStyle,
     public val touchPadding: Dp = 8.dp,
     public val selfHighlight: DanmakuSelfHighlight? = DanmakuSelfHighlight.Default,
+    public val maxVisible: Int = Int.MAX_VALUE,
+    public val overflowPolicy: DanmakuOverflowPolicy = DanmakuOverflowPolicy.Overlap,
 ) {
     init {
         require(laneCount > 0) { "laneCount must be positive, was $laneCount" }
         require(durationMillis > 0L) { "durationMillis must be positive, was $durationMillis" }
         require(laneHeight > 0.dp) { "laneHeight must be positive, was $laneHeight" }
+        require(maxVisible > 0) { "maxVisible must be positive, was $maxVisible" }
     }
 
     public companion object {

@@ -114,9 +114,10 @@ public fun DanmakuOverlay(
         val pinnedEntry = if (pinnedId == null) null else placed.firstOrNull { it.item.id == pinnedId }
 
         // Resolved here rather than trusting the value the caller stored, so the slot stays aligned when the
-        // layer is resized while a menu is open.
+        // layer is resized while a menu is open. A selection whose entry is no longer placed - dropped by
+        // [DanmakuStyle.maxVisible], or gone from the list - reports nothing, so no menu lingers over nothing.
         val resolvedSelection = if (selection == null || pinnedEntry == null) {
-            selection
+            null
         } else {
             val progress = pinnedEntry.progressAt(pinnedMs)
             selection.copy(

@@ -74,9 +74,12 @@ internal fun placeDanmaku(
         containerWidthPx = containerWidthPx,
         durationMillis = style.durationMillis,
         gapPx = gapPx,
+        maxVisible = style.maxVisible,
+        overflowPolicy = style.overflowPolicy,
     )
 
-    return sorted.mapIndexed { index, item ->
+    return sorted.mapIndexedNotNull { index, item ->
+        if (lanes[index] == LaneAllocator.DROPPED) return@mapIndexedNotNull null
         PlacedDanmaku(
             item = item,
             textLayout = layouts[index],
