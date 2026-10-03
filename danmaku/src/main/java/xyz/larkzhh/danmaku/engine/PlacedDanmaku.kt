@@ -54,6 +54,9 @@ internal class PlacedDanmaku(
  * @param measurer Measurer used to lay the text out.
  * @param density Used to resolve [DanmakuItem.width], which the caller expresses in dp.
  * @param style Style supplying the lane count, the duration and the text style to measure with.
+ * @param cache Layouts already measured, carried over from the previous pass. Pass the same instance across
+ *   passes to make a list that grew by one entry cost one measurement; the default is a cache that lives for
+ *   this call only, which measures every entry every time.
  * @return The entries ready to draw, ordered by start time.
  */
 /**
@@ -81,6 +84,27 @@ internal fun resolveWidthPx(item: DanmakuItem, measuredWidthPx: Float, density: 
 internal fun scaledFontSize(item: DanmakuItem, base: TextUnit): TextUnit =
     if (base.isSpecified) base * item.scale else base
 
+/// What [measureDanmaku] depends on, so an entry that repeats another one reuses its layout instead of
+/// measuring it again. Colour is not part of it, and neither is anything else the style fixes for the pass.
+private fun measurementKey(item: DanmakuItem, style: DanmakuStyle): MeasurementKey =
+    MeasurementKey(text = item.text, fontSize = scaledFontSize(item, style.textStyle.fontSize))
+
+/// Measures one entry, unwrapped: an entry wider than the layer scrolls across it rather than being clipped.
+///
+/// The entry's own colour is deliberately not applied here. One layout is shared by every entry with the same
+/// text at the same size, so baking one entry's colour into it would leak that colour onto all the others. The
+/// renderer applies `DanmakuItem.color` as it draws instead, and what a layout carries is the style's colour.
+private fun measureDanmaku(
+    item: DanmakuItem,
+    measurer: TextMeasurer,
+    style: DanmakuStyle,
+): TextLayoutResult = measurer.measure(
+    text = item.text,
+    style = style.textStyle.copy(fontSize = scaledFontSize(item, style.textStyle.fontSize)),
+    maxLines = 1,
+    softWrap = false,
+)
+
 internal fun placeDanmaku(
     items: List<DanmakuItem>,
     containerWidthPx: Float,
@@ -88,21 +112,25 @@ internal fun placeDanmaku(
     measurer: TextMeasurer,
     density: Density,
     style: DanmakuStyle,
+    cache: MeasurementCache<MeasurementKey, TextLayoutResult> = MeasurementCache(),
 ): List<PlacedDanmaku> {
-    if (items.isEmpty()) return emptyList()
+    if (items.isEmpty()) {
+        // Nothing is on screen, so nothing is worth holding on to.
+        cache.retainOnly(emptySet())
+        return emptyList()
+    }
 
     val sorted = items.sortedBy { it.timeMs }
+    // Collected while the layouts are resolved, so what the cache keeps is exactly what this list still
+    // refers to and nothing that has left it.
+    val liveKeys = HashSet<MeasurementKey>(sorted.size)
     val layouts = sorted.map { item ->
-        measurer.measure(
-            text = item.text,
-            style = style.textStyle.copy(
-                color = item.color,
-                fontSize = scaledFontSize(item, style.textStyle.fontSize),
-            ),
-            maxLines = 1,
-            softWrap = false,
-        )
+        val key = measurementKey(item, style)
+        liveKeys += key
+        cache.getOrBuild(key) { measureDanmaku(item, measurer, style) }
     }
+    cache.retainOnly(liveKeys)
+
     val widthsPx = FloatArray(sorted.size) { index ->
         resolveWidthPx(
             item = sorted[index],

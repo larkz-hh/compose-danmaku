@@ -21,8 +21,11 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.IntSize
+import xyz.larkzhh.danmaku.engine.MeasurementCache
+import xyz.larkzhh.danmaku.engine.MeasurementKey
 import xyz.larkzhh.danmaku.engine.PlacedDanmaku
 import xyz.larkzhh.danmaku.engine.TapAction
 import xyz.larkzhh.danmaku.engine.hitTest
@@ -36,8 +39,9 @@ import xyz.larkzhh.danmaku.engine.tapAction
  * an entry is yours, what a tap should open and where the text field lives are all the host app's
  * decisions, reached through [DanmakuItem.isSelf], [selection] and [selectionContent].
  *
- * Measuring happens once per change of [items] or of the layer width, and the frame loop writes its
- * position into a state read only by the draw phase. Neither composition nor layout runs per frame.
+ * Measuring happens once per entry rather than once per pass: layouts are carried across passes, so an entry
+ * list that grew by one entry costs one measurement instead of one per entry. The frame loop writes its
+ * position into a state read only by the draw phase, so neither composition nor layout runs per frame.
  *
  * @param items Entries to draw. Order does not matter, they are sorted by [DanmakuItem.timeMs].
  * @param clock Playback timeline used to place the entries. Read once per frame.
@@ -77,6 +81,15 @@ public fun DanmakuOverlay(
     }
 
     val textMeasurer = rememberTextMeasurer()
+    val density = LocalDensity.current
+
+    // Outlives a pass, which is the point: a list that grew by one entry then costs one measurement instead of
+    // one per entry. Everything a layout depends on is a key of this remember, so a change to any of it starts
+    // a fresh cache rather than serving layouts measured under the old one. The layer width is deliberately
+    // absent: entries are measured unwrapped, so a resize re-places without re-measuring.
+    val measurementCache = remember(style, textMeasurer, density) {
+        MeasurementCache<MeasurementKey, TextLayoutResult>()
+    }
 
     // Hoisted so that a clock built inline in a composable does not restart the frame loop on every
     // recomposition: only the latest value matters here, never the identity.
@@ -99,12 +112,11 @@ public fun DanmakuOverlay(
     BoxWithConstraints(modifier = modifier.height(regionHeight)) {
         val layerSize = IntSize(constraints.maxWidth, constraints.maxHeight)
         val containerWidthPx = constraints.maxWidth.toFloat()
-        val density = LocalDensity.current
         val laneHeightPx = with(density) { style.laneHeight.toPx() }
         val gapPx = with(density) { style.itemGap.toPx() }
         val touchPaddingPx = with(density) { style.touchPadding.toPx() }
 
-        val placed = remember(items, containerWidthPx, style, textMeasurer) {
+        val placed = remember(items, containerWidthPx, style, textMeasurer, measurementCache) {
             placeDanmaku(
                 items = items,
                 containerWidthPx = containerWidthPx,
@@ -112,6 +124,7 @@ public fun DanmakuOverlay(
                 measurer = textMeasurer,
                 density = density,
                 style = style,
+                cache = measurementCache,
             )
         }
 

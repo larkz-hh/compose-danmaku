@@ -14,7 +14,11 @@ import androidx.compose.ui.unit.IntSize
  * The overlay resolves all layout for you, so an implementation only has to decide how the entry looks.
  *
  * @property item The entry being drawn.
- * @property textLayout Measured text, ready to hand to `drawText`. Never measured per frame.
+ * @property textLayout Measured text, ready to hand to `drawText`. Never measured per frame, and shared with
+ *   every other entry that has the same text at the same size, so it carries the colour of
+ *   [DanmakuStyle.textStyle] rather than [DanmakuItem.color]. Handing it to `drawText` without a colour
+ *   therefore draws every one of those entries alike; pass [DanmakuItem.color] the way [drawDefaultDanmaku]
+ *   does.
  * @property topLeft Where the text goes, in pixels, relative to the layer.
  * @property size Box reserved for the entry in pixels. Its width is the measured text width unless
  *   [DanmakuItem.width] overrides it; content that is not text should be drawn inside it.
@@ -119,6 +123,9 @@ public fun DrawScope.drawDefaultDanmaku(context: DanmakuDrawContext) {
     }
     drawText(
         textLayoutResult = context.textLayout,
+        // Passed rather than left to the layout: entries of the same text and size share one measured layout,
+        // which can only carry one colour, so each entry has to state its own here or they all draw alike.
+        color = context.item.color,
         topLeft = context.topLeft,
         alpha = context.alpha,
     )
