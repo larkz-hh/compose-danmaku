@@ -38,7 +38,7 @@ public val DefaultDanmakuTextStyle: TextStyle = TextStyle(
  *   left edge. Smaller values scroll faster and free a lane sooner.
  * @property itemGap Minimum horizontal gap kept between two entries sharing a lane.
  * @property textStyle Style used to measure and draw the text. Its colour is overridden per entry by
- *   [DanmakuItem.color].
+ *   [DanmakuItem.color] and its size per entry by [DanmakuItem.scale].
  * @property touchPadding How far the tap target extends past the text on every side. Text is thin, and
  *   a bare glyph is an unreasonably small target.
  * @property selfHighlight Plate drawn behind entries flagged as [DanmakuItem.isSelf], or `null` to draw
@@ -50,6 +50,8 @@ public val DefaultDanmakuTextStyle: TextStyle = TextStyle(
  *   [DanmakuOverflowPolicy.Overlap]. Only reached while [maxVisible] still has room: a lane counts as busy
  *   until the tail of its last entry has cleared the right edge, which happens well before that entry leaves
  *   the screen, so with `maxVisible <= laneCount` the cap always fires first.
+ * @property textOutline Outline stroked behind the text, or `null` for none. An outline holds up better than
+ *   a shadow over a bright frame, and the two can be combined.
  */
 @Immutable
 public data class DanmakuStyle(
@@ -62,6 +64,7 @@ public data class DanmakuStyle(
     public val selfHighlight: DanmakuSelfHighlight? = DanmakuSelfHighlight.Default,
     public val maxVisible: Int = Int.MAX_VALUE,
     public val overflowPolicy: DanmakuOverflowPolicy = DanmakuOverflowPolicy.Overlap,
+    public val textOutline: DanmakuTextOutline? = null,
 ) {
     init {
         require(laneCount > 0) { "laneCount must be positive, was $laneCount" }
@@ -98,5 +101,29 @@ public data class DanmakuSelfHighlight(
     public companion object {
         /** A translucent dark fill with a hairline white border. */
         public val Default: DanmakuSelfHighlight = DanmakuSelfHighlight()
+    }
+}
+
+/**
+ * Outline stroked behind the text.
+ *
+ * Drawn as a stroked pass underneath the filled text, so the two together read as an outlined glyph
+ * rather than as a hollow one.
+ *
+ * @property color Colour of the stroke.
+ * @property width Stroke width.
+ */
+@Immutable
+public data class DanmakuTextOutline(
+    public val color: Color = Color.Black,
+    public val width: Dp = 1.dp,
+) {
+    init {
+        require(width > 0.dp) { "width must be positive, was $width" }
+    }
+
+    public companion object {
+        /** A one pixel black outline, the usual choice over video. */
+        public val Default: DanmakuTextOutline = DanmakuTextOutline()
     }
 }

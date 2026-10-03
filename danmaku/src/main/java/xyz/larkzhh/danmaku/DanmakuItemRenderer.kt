@@ -16,20 +16,22 @@ import androidx.compose.ui.unit.IntSize
  * @property item The entry being drawn.
  * @property textLayout Measured text, ready to hand to `drawText`. Never measured per frame.
  * @property topLeft Where the text goes, in pixels, relative to the layer.
- * @property alpha Layer opacity, already multiplied by the value passed to [DanmakuOverlay].
+ * @property size Box reserved for the entry in pixels. Its width is the measured text width unless
+ *   [DanmakuItem.width] overrides it; content that is not text should be drawn inside it.
+ * @property alpha Opacity of the layer, as passed to [DanmakuOverlay].
  * @property selfHighlight Plate to draw behind the text, or `null` when the entry is not the current
  *   user's or [DanmakuStyle.selfHighlight] is disabled.
+ * @property textOutline Outline to stroke behind the text, or `null` for none.
  */
 public class DanmakuDrawContext internal constructor(
     public val item: DanmakuItem,
     public val textLayout: TextLayoutResult,
     public val topLeft: Offset,
+    public val size: IntSize,
     public val alpha: Float,
     public val selfHighlight: DanmakuSelfHighlight?,
-) {
-    /** Measured size of the text in pixels. */
-    public val size: IntSize get() = textLayout.size
-}
+    public val textOutline: DanmakuTextOutline?,
+)
 
 /**
  * Draws a single danmaku entry.
@@ -102,6 +104,17 @@ public fun DrawScope.drawDefaultDanmaku(context: DanmakuDrawContext) {
             size = plateSize,
             style = Stroke(width = highlight.borderWidth.toPx()),
             alpha = context.alpha,
+        )
+    }
+    val outline = context.textOutline
+    if (outline != null) {
+        // A stroked pass underneath: on its own it would render the glyph hollow, which is not the look.
+        drawText(
+            textLayoutResult = context.textLayout,
+            color = outline.color,
+            topLeft = context.topLeft,
+            alpha = context.alpha,
+            drawStyle = Stroke(width = outline.width.toPx()),
         )
     }
     drawText(

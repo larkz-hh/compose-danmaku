@@ -2,6 +2,8 @@ package xyz.larkzhh.danmaku
 
 import androidx.compose.runtime.Immutable
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 
 /**
  * A single danmaku entry.
@@ -19,6 +21,12 @@ import androidx.compose.ui.graphics.Color
  * @property isSelf Whether the entry was sent by the current user. The library never resolves identity
  *   itself; the host app computes this, typically as `authorId == currentUserId`. The default renderer
  *   highlights the entries flagged this way.
+ * @property scale Font size multiplier applied to [DanmakuStyle.textStyle]. This is how the small, medium
+ *   and large sizes a danmaku client offers are expressed. The text is measured with the scaled size, so
+ *   lane allocation follows it.
+ * @property width Width reserved for the entry, or `null` to use the measured text width. Set it for content
+ *   that is not text, such as an avatar or an emoji. The height still comes from the text layout, so
+ *   non-text content is expected to fit inside [DanmakuStyle.laneHeight].
  */
 @Immutable
 public data class DanmakuItem(
@@ -27,4 +35,11 @@ public data class DanmakuItem(
     public val timeMs: Long,
     public val color: Color = Color.White,
     public val isSelf: Boolean = false,
-)
+    public val scale: Float = 1f,
+    public val width: Dp? = null,
+) {
+    init {
+        require(scale > 0f) { "scale must be positive, was $scale" }
+        require(width == null || width > 0.dp) { "width must be positive when set, was $width" }
+    }
+}

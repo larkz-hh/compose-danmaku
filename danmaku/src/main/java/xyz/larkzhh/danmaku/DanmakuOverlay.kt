@@ -15,7 +15,7 @@ import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.withFrameMillis
+import androidx.compose.animation.core.withInfiniteAnimationFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.drawscope.DrawScope
@@ -24,8 +24,10 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.IntSize
 import xyz.larkzhh.danmaku.engine.PlacedDanmaku
+import xyz.larkzhh.danmaku.engine.TapAction
 import xyz.larkzhh.danmaku.engine.hitTest
 import xyz.larkzhh.danmaku.engine.placeDanmaku
+import xyz.larkzhh.danmaku.engine.tapAction
 
 /**
  * Draws [items] as a scrolling danmaku layer.
@@ -48,9 +50,10 @@ import xyz.larkzhh.danmaku.engine.placeDanmaku
  * @param itemRenderer How a single entry is drawn.
  * @param selection The entry to pin in place, normally the value last reported by [onSelectionChange].
  *   Pass `null` to let every entry follow the clock.
- * @param onSelectionChange Called with the tapped entry, and with `null` when a tap lands on empty space
- *   while something is selected. A tap on empty space with nothing selected reports nothing. When `null`
- *   the layer consumes no touches at all, which lets a parent handle them instead.
+ * @param onSelectionChange Called with the tapped entry. Reported as `null` when the tap releases the
+ *   selection instead: a tap on empty space, or a second tap on the entry already pinned. A tap on empty
+ *   space with nothing selected reports nothing at all. When `null` the layer consumes no touches, which
+ *   lets a parent handle them instead.
  * @param selectionContent Content drawn inside the layer's own coordinate space whenever [selection]
  *   resolves to an entry. Position it with [DanmakuSelection.topLeft]; what it contains is up to you.
  */
@@ -84,7 +87,9 @@ public fun DanmakuOverlay(
     var frameMs by remember { mutableLongStateOf(0L) }
     LaunchedEffect(Unit) {
         while (true) {
-            withFrameMillis { }
+            // An endless frame loop is exactly what this is, and saying so lets previews and tests skip it
+            // instead of waiting for a frame that never stops arriving.
+            withInfiniteAnimationFrameNanos { }
             val position = currentClock.positionMs()
             // A paused player would otherwise invalidate the draw phase sixty times a second.
             if (position != frameMs) frameMs = position
@@ -105,6 +110,7 @@ public fun DanmakuOverlay(
                 containerWidthPx = containerWidthPx,
                 gapPx = gapPx,
                 measurer = textMeasurer,
+                density = density,
                 style = style,
             )
         }
@@ -125,7 +131,7 @@ public fun DanmakuOverlay(
                     x = pinnedEntry.xAt(progress, containerWidthPx),
                     y = pinnedEntry.topLeftY(laneHeightPx),
                 ),
-                size = pinnedEntry.textLayout.size,
+                size = pinnedEntry.size,
                 layerSize = layerSize,
             )
         }
@@ -148,30 +154,31 @@ public fun DanmakuOverlay(
                         pinnedId = current?.item?.id,
                         pinnedMs = current?.frozenAtMs ?: 0L,
                     )
-                    when {
-                        hit != null -> {
-                            up.consume()
-                            // Re-tapping the pinned entry keeps it where it already is.
-                            val frozenAtMs =
-                                if (hit.item.id == current?.item?.id) current.frozenAtMs else frameMs
-                            val progress = hit.progressAt(frozenAtMs)
-                            currentOnSelectionChange?.invoke(
-                                DanmakuSelection(
-                                    item = hit.item,
-                                    topLeft = Offset(
-                                        x = hit.xAt(progress, containerWidthPx),
-                                        y = hit.topLeftY(laneHeightPx),
-                                    ),
-                                    size = hit.textLayout.size,
-                                    layerSize = layerSize,
-                                    frozenAtMs = frozenAtMs,
-                                ),
-                            )
-                        }
+                    when (tapAction(hit?.item?.id, current?.item?.id)) {
+                        TapAction.Ignore -> return@awaitEachGesture
 
-                        current != null -> {
+                        TapAction.Clear -> {
                             up.consume()
                             currentOnSelectionChange?.invoke(null)
+                        }
+
+                        TapAction.Select -> {
+                            // tapAction only reports Select for a hit, so this is never null in practice.
+                            val entry = hit ?: return@awaitEachGesture
+                            up.consume()
+                            val progress = entry.progressAt(frameMs)
+                            currentOnSelectionChange?.invoke(
+                                DanmakuSelection(
+                                    item = entry.item,
+                                    topLeft = Offset(
+                                        x = entry.xAt(progress, containerWidthPx),
+                                        y = entry.topLeftY(laneHeightPx),
+                                    ),
+                                    size = entry.size,
+                                    layerSize = layerSize,
+                                    frozenAtMs = frameMs,
+                                ),
+                            )
                         }
                     }
                 }
@@ -227,8 +234,10 @@ private fun PlacedDanmaku.drawContext(
     item = item,
     textLayout = textLayout,
     topLeft = topLeft,
+    size = size,
     alpha = alpha,
     selfHighlight = if (item.isSelf) style.selfHighlight else null,
+    textOutline = style.textOutline,
 )
 
 /// Hands one entry to the renderer.
