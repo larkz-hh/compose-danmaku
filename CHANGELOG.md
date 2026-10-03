@@ -7,6 +7,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-03
+
 ### Added
 
 - `DanmakuSelection` reports a tapped entry together with `topLeft`, `size`, `layerSize` and the moment it was
@@ -23,6 +25,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - `DanmakuStyle.textOutline` strokes an outline behind the text.
 - `DanmakuBubble` draws a default plate under the selected entry with an arrow aimed at it, and
   `DanmakuBubbleItem` is a plain item that matches the plate.
+- Unit tests for the placement maths, the bubble geometry and the tap rules.
+- A sample settings panel for the opacity, density, font size, speed, lane count and outline.
 
 ### Changed
 
