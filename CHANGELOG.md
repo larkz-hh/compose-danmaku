@@ -7,6 +7,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-04
+
+### Added
+
+- `DanmakuOverlay` takes `selectionTimeoutMillis` and releases the selection itself once it elapses, so a menu
+  nobody comes back to does not pin an entry there indefinitely. The default is 5 seconds, every press inside
+  the layer restarts the count, and `0` or less leaves the release to the host.
+
+### Changed
+
+- An entry that has been selected and released carries on from the place it was held at, rather than snapping
+  forward to wherever the timeline has since reached. The delay is kept per entry and applied only while
+  drawing, so the lane worked out for that entry still stands. The entry is out of step with the timeline from
+  then on, which is the point: the reader stopped in order to finish reading it.
+- Seeking the clock backwards drops every such delay and reports `null` through `onSelectionChange`, because
+  the reading those delays were measured against no longer applies.
+
 ## [0.3.0] - 2026-10-03
 
 ### Added
