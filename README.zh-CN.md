@@ -107,6 +107,7 @@ DanmakuOverlay(
 | `itemRenderer` | `DefaultDanmakuItemRenderer` | 单条弹幕的绘制方式 |
 | `selection` | `null` | 要钉住的弹幕，通常回传 `onSelectionChange` 最近上报的值 |
 | `onSelectionChange` | `null` | 点击弹幕时上报该弹幕；已选中时点击空白处上报 `null`；为 `null` 时不消费触摸 |
+| `selectionTimeoutMillis` | `5_000L` | 选中保持多久后由图层释放；图层内每次按下都重新计时，`0` 表示由宿主负责释放 |
 | `selectionContent` | `{}` | 当 `selection` 对应到某条弹幕时，在图层坐标系内组合的内容 |
 
 `DanmakuItem` 的属性：
@@ -160,6 +161,8 @@ DanmakuOverlay(
 
 文本按条测量一次，而非每个 pass 测量一次：测量结果跨 pass 保留，因此列表新增一条只产生一次测量的开销，而非全部重测。`style` 是该缓存的键；`opacity` 只作用于绘制阶段，故为独立参数。单个 pass 的实测开销见 [PERFORMANCE.zh-CN.md](PERFORMANCE.zh-CN.md)。
 
+被选中后释放的弹幕，从冻住时的位置继续滚动。延迟按条记录，仅作用于绘制；该弹幕保持原有轨道，并与时间轴不再对齐。时钟回退时所有延迟被清空。
+
 ## 注意事项
 
 - 所有轨道均被占用时，弹幕占用最早空出的轨道，可能与更早的弹幕重叠；`DanmakuOverflowPolicy.Drop` 则不绘制该条。
@@ -172,6 +175,9 @@ DanmakuOverlay(
 - `onSelectionChange` 为 `null` 时图层不消费触摸事件，适用于覆盖在点击即暂停的表面上。
 - `selectionContent` 在图层内部组合，`DanmakuSelection.topLeft` 可直接作为偏移量使用。置于图层外部的内容需自行换算图层位置。
 - 再次点击已钉住的弹幕时，该弹幕保持原位，不会按当前时刻重新钉住。
+- 释放后的弹幕与时间轴永久错位：它钉在某个时刻上，从那个时刻继续，而非从当前时钟继续。轨道不变，因为延迟不进入轨道分配。
+- 时钟回退时，图层丢弃所有延迟，并通过 `onSelectionChange` 上报 `null`，菜单不会停留在已失效的位置上。
+- 选中在 `selectionTimeoutMillis` 后由图层释放，无人操作的菜单不会让弹幕被无限期钉住。图层内每次按下都重新计时，包括按在宿主菜单上。
 - 宽于图层的弹幕不换行，整条滚动通过，以保证轨道分配的可预测性。
 - 时钟每帧调用一次，实现需保持轻量且不得阻塞。
 - 内联构造 `DanmakuClock { ... }` 是安全的：帧循环始终读取最新的时钟且不会重启。

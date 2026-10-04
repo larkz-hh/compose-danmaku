@@ -111,6 +111,7 @@ Parameters of `DanmakuOverlay`:
 | `itemRenderer` | `DefaultDanmakuItemRenderer` | How a single entry is drawn |
 | `selection` | `null` | Entry to pin in place, normally the value last reported by `onSelectionChange` |
 | `onSelectionChange` | `null` | Called with the tapped entry, and with `null` on a tap on empty space while something is selected; `null` consumes no touches |
+| `selectionTimeoutMillis` | `5_000L` | How long a selection is held before the layer releases it; every press inside the layer restarts the count, and `0` leaves the release to the host |
 | `selectionContent` | `{}` | Content composed inside the layer's coordinate space while `selection` resolves to an entry |
 
 Properties of `DanmakuItem`:
@@ -169,6 +170,8 @@ The playback position is written into state that only the draw phase reads, so t
 
 Text is measured once per entry rather than once per pass: measured layouts are carried across passes, so a list that grew by one entry costs one measurement instead of one per entry. `style` is a key of that cache, and `opacity`, affecting only drawing, is a parameter of its own. The measured cost of a pass is in [PERFORMANCE.md](PERFORMANCE.md).
 
+An entry that has been selected and released resumes from the position it was held at, not from the position the timeline has since reached. The delay is kept per entry and applied while drawing; the entry keeps the lane it was given, and is out of step with the timeline from then on. Seeking the clock backwards clears every delay.
+
 ## Notes
 
 - When every lane is occupied, an entry takes the lane that clears first and may overlap an earlier entry. With
@@ -193,6 +196,9 @@ Text is measured once per entry rather than once per pass: measured layouts are 
 - `selectionContent` is composed inside the layer, so `DanmakuSelection.topLeft` is an offset already.
   Content placed outside the layer would need the layer's own position added to it.
 - Re-tapping the pinned entry keeps it where it is instead of pinning it again at the current moment.
+- A released entry stays out of step with the timeline: it was pinned to a moment and resumes from that moment, not from the clock. It keeps its lane, because the delay never reaches lane allocation.
+- Seeking the clock backwards drops every delay and reports `null` through `onSelectionChange`, so a menu does not outlive the position it was anchored to.
+- The layer releases a selection on its own after `selectionTimeoutMillis`, so an untouched menu does not pin an entry indefinitely. Every press inside the layer restarts the count, including a press on the host's own menu.
 - Entries wider than the layer are not wrapped and scroll through whole, which keeps lane allocation
   predictable.
 - The clock is called once per frame, so it must be lightweight and must not block.

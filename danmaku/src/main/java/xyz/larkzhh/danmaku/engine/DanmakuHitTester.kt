@@ -17,6 +17,8 @@ import androidx.compose.ui.geometry.Offset
  * @param pinnedId Id of the entry currently pinned by a selection, if any.
  * @param pinnedMs The moment [pinnedId] is pinned at. The pinned entry is tested there instead of at
  *   [nowMs], because that is where it is drawn.
+ * @param shiftMsOf How far the drawing of an entry is delayed by [DanmakuHold]. Tested against the same
+ *   reading the entry is drawn at, or a tap would land somewhere the entry is not.
  * @return The touched entry, or `null` when the touch missed every visible entry.
  */
 internal fun hitTest(
@@ -28,15 +30,18 @@ internal fun hitTest(
     touchPaddingPx: Float,
     pinnedId: Long? = null,
     pinnedMs: Long = 0L,
+    shiftMsOf: (Long) -> Long = { 0L },
 ): PlacedDanmaku? {
-    val pinned = if (pinnedId == null) null else placed.firstOrNull { it.item.id == pinnedId }
-    if (pinned != null && pinned.contains(position, pinnedMs, containerWidthPx, laneHeightPx, touchPaddingPx)) {
+    val pinned = pinnedId?.let { id -> placed.firstOrNull { it.item.id == id } }
+    val pinnedAt = pinnedMs - (pinned?.let { shiftMsOf(it.item.id) } ?: 0L)
+    if (pinned != null && pinned.contains(position, pinnedAt, containerWidthPx, laneHeightPx, touchPaddingPx)) {
         return pinned
     }
     for (index in placed.indices.reversed()) {
         val entry = placed[index]
         if (entry === pinned) continue
-        if (entry.contains(position, nowMs, containerWidthPx, laneHeightPx, touchPaddingPx)) return entry
+        val at = nowMs - shiftMsOf(entry.item.id)
+        if (entry.contains(position, at, containerWidthPx, laneHeightPx, touchPaddingPx)) return entry
     }
     return null
 }
